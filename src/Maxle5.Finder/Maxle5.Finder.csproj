@@ -2,20 +2,17 @@
 
 	<PropertyGroup>
 		<LangVersion>10.0</LangVersion>
-		<TargetFramework>netstandard2.0</TargetFramework>
-	</PropertyGroup>
-
-	<PropertyGroup>
-		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-		<!-- Generates a package at build -->
 		<IncludeBuildOutput>false</IncludeBuildOutput>
-		<!-- Do not include the generator as a lib dependency -->
+		<TargetFramework>netstandard2.0</TargetFramework>
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
 	</PropertyGroup>
 
-	<ItemGroup>
-		<!-- Package the generator in the analyzer directory of the nuget package -->
+	<!--<ItemGroup>
+		-->
+	<!-- Package the generator in the analyzer directory of the nuget package -->
+	<!--
 		<None Include="$(OutputPath)\$(AssemblyName).dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
-	</ItemGroup>
+	</ItemGroup>-->
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.1.0" />

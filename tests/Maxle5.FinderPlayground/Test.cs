@@ -73,6 +73,6 @@ namespace Maxle5.FinderPlayground
     public static partial class DateTimeFinder
     {
         [Finder.FinderGenerator]
-        public static partial IEnumerable<string> Find(Parent parent);
+        public static partial IEnumerable<DateTime> Find(Parent parent);
     }
 }

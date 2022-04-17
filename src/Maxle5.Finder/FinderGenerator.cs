@@ -1,5 +1,4 @@
 ﻿using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -11,7 +10,7 @@ namespace Maxle5.Finder
     [Generator]
     public class FinderSourceGenerator : ISourceGenerator
     {
-        private readonly Queue<char> _variableNames = new Queue<char>(new[]
+        private readonly Queue<char> _variableNames = new(new[]
         {
             'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','v','w','x','y','z'
         });
@@ -20,14 +19,29 @@ namespace Maxle5.Finder
         {
 #if DEBUG
             // If you want to debug the Source Generator, please uncomment the below code.
-            if (!Debugger.IsAttached)
-            {
-                Debugger.Launch();
-            }
+            // if (!Debugger.IsAttached)
+            // {
+            //     Debugger.Launch();
+            // }
 #endif            
 
             // Register the attribute source
-            context.RegisterForPostInitialization((i) => i.AddSource("FinderGeneratorAttribute.g.cs", FinderTemplates.Attribute));
+            context.RegisterForPostInitialization((i) => i.AddSource(
+                "FinderGeneratorAttribute.g.cs",
+                @"
+using System;
+using System.Collections.Generic;
+
+namespace Maxle5.Finder
+{
+    [AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
+    public class FinderGeneratorAttribute : Attribute
+    {
+        public FinderGeneratorAttribute()
+        {
+        }
+    }
+}"));
 
             // Register a syntax receiver that will be created for each generation pass
             context.RegisterForSyntaxNotifications(() => new FinderSyntaxReceiver());
@@ -41,33 +55,43 @@ namespace Maxle5.Finder
                 return;
             }
 
-            foreach (var finderMethodToGenerate in receiver.FinderMethodsToGenerate)
+            foreach (var group in receiver.FinderMethodsToGenerate.GroupBy(m => m.ContainingType.Name))
             {
-                if (finderMethodToGenerate.Parameters.Length != 1)
+                var finderMethods = new StringBuilder();
+                foreach (var finderMethodToGenerate in group)
                 {
-                    continue; // doesn't have a single parameter (this is a requirement)
+                    if (finderMethodToGenerate.Parameters.Length != 1)
+                    {
+                        continue; // doesn't have a single parameter (this is a requirement)
+                    }
+
+                    if (!TryGetGenericArgumentTypeFromIEnumerable(finderMethodToGenerate.ReturnType as INamedTypeSymbol, out var typeToFind))
+                    {
+                        continue; // doesn't return IEnumerable (this is a requirement)
+                    }
+
+                    var finderMethodWrapper = BuildMethodWrapper(finderMethodToGenerate, typeToFind);
+                    var parameter = finderMethodToGenerate.Parameters[0];
+                    var typeToLookThrough = parameter.Type as INamedTypeSymbol;
+                    finderMethods.Append(GenerateFinderClass(finderMethodWrapper, parameter.Name, typeToLookThrough, typeToFind));
+                    finderMethods.Append("\n\n\t");
                 }
 
-                if (!TryGetGenericArgumentTypeFromIEnumerable(finderMethodToGenerate.ReturnType as INamedTypeSymbol, out var typeToFind))
-                {
-                    continue; // doesn't return IEnumerable (this is a requirement)
-                }
+                var finderNamespace = receiver.FinderMethodsToGenerate.FirstOrDefault()?.ContainingNamespace.ToString();
+                var finderClassWrapper = BuildClassWrapper(receiver.FinderMethodsToGenerate.FirstOrDefault());
 
-                var finderNamespace = finderMethodToGenerate.ContainingNamespace.ToString();
-                var finderClass = BuildClassWrapper(finderMethodToGenerate);
-                var finderMethod = BuildMethodWrapper(finderMethodToGenerate, typeToFind);
-                var parameter = finderMethodToGenerate.Parameters[0];
-                var typeToLookThrough = parameter.Type as INamedTypeSymbol;
+                var sourceCode = $@"using System;
+using System.Collections.Generic;
 
-                var sourceCode = $@"namespace {finderNamespace}
+namespace {finderNamespace}
 {{
-    {finderClass}
+    {finderClassWrapper}
     {{
-        {GenerateFinderClass(finderMethod, parameter.Name, typeToLookThrough, typeToFind)}
+        {finderMethods}
     }}
 }}";
 
-                context.AddSource($"{finderMethodToGenerate.ContainingType.Name}.g.cs", SourceText.From(sourceCode, Encoding.UTF8));
+                context.AddSource($"{group.Key}.g.cs", SourceText.From(sourceCode, Encoding.UTF8));
             }
         }
 
@@ -117,9 +141,9 @@ namespace Maxle5.Finder
                     // Check if there were any matches in type T
                     if (tempSourceCode.Length > 0)
                     {
-                        tempSourceCode.Insert(0, $"\nforeach(var {variableName} in {currentPath})\n{{\n");
+                        tempSourceCode.Insert(0, $"foreach(var {variableName} in {currentPath})\n{{\n");
                         tempSourceCode.Append("}\n");
-                        sourceCode.Append(tempSourceCode.ToString()).Append('\n');
+                        sourceCode.Append(tempSourceCode.ToString());
                     }
                 }
 
@@ -128,7 +152,9 @@ namespace Maxle5.Finder
             }
             else
             {
-                if (currentType.Equals(typeToFind, SymbolEqualityComparer.Default) || currentType.Equals(typeToFind, SymbolEqualityComparer.Default))
+                if (
+                    currentType.Equals(typeToFind, SymbolEqualityComparer.Default) ||
+                    (typeToFind.TypeKind == TypeKind.Interface && currentType.AllInterfaces.Any(i => i.Equals(typeToFind, SymbolEqualityComparer.Default))))
                 {
                     sourceCode.Append("instances.Add(").Append(currentPath).AppendLine(");\n");
                 }
@@ -137,7 +163,7 @@ namespace Maxle5.Finder
                 {
                     foreach (var property in currentType.GetMembers().OfType<IPropertySymbol>())
                     {
-                        if (property.Type is INamedTypeSymbol propertyType)
+                        if (property.Type is INamedTypeSymbol propertyType && !property.Type.Equals(currentType, SymbolEqualityComparer.Default))
                         {
                             GenerateFinderMethod(
                                 sourceCode,
@@ -180,7 +206,6 @@ namespace Maxle5.Finder
 
             var @class = method.ContainingType;
 
-
             var accessibility = @class.DeclaredAccessibility switch
             {
                 Accessibility.Public => "public",
@@ -196,10 +221,8 @@ namespace Maxle5.Finder
                 sb.Append(" static");
             }
 
-            if (method.IsPartialDefinition)
-            {
-                sb.Append(" partial");
-            }
+            // TODO: figure out how to determine if this is a partial class
+            sb.Append(" partial");
 
             if (@class.IsSealed)
             {
@@ -212,7 +235,6 @@ namespace Maxle5.Finder
             }
 
             sb.Append(" class ");
-
             sb.Append(@class.Name);
 
             return sb.ToString();
@@ -262,48 +284,17 @@ namespace Maxle5.Finder
             out INamedTypeSymbol genericArgumentType)
         {
             genericArgumentType = null;
-            if (type.ConstructedFrom.Name == "IEnumerable")
+            if ((type.ConstructedFrom.Name == "IEnumerable" || type.AllInterfaces.Any(i => i.Name == "IEnumerable")) && type.TypeArguments.Length > 0)
             {
-                var genericArgs = type.TypeArguments;
-                if (genericArgs.Length > 0)
+                genericArgumentType = type.TypeArguments[0] as INamedTypeSymbol;
+
+                if (genericArgumentType != null)
                 {
-                    genericArgumentType = genericArgs[0] as INamedTypeSymbol;
                     return true;
                 }
             }
 
             return false;
-        }
-    }
-
-    /// <summary>
-    /// Created on demand before each generation pass
-    /// </summary>
-    internal class FinderSyntaxReceiver : ISyntaxContextReceiver
-    {
-        /// <summary>
-        /// List of "Finder methods" to generate
-        /// </summary>
-        public List<IMethodSymbol> FinderMethodsToGenerate { get; } = new List<IMethodSymbol>();
-
-        /// <summary>
-        /// Called for every syntax node in the compilation, we can inspect the nodes and save any information useful for generation
-        /// </summary>
-        public void OnVisitSyntaxNode(GeneratorSyntaxContext context)
-        {
-            if (context.Node is MethodDeclarationSyntax methodDeclarationSyntax             // any method
-                && methodDeclarationSyntax.AttributeLists.Count > 0                         // with atleast 1 attribute
-                && methodDeclarationSyntax.Modifiers.Any(m => m.ValueText == "partial")     // that is partial
-                && methodDeclarationSyntax.ParameterList.Parameters.Count == 1)             // with 1 parameter
-            {
-                var methodSymbol = context.SemanticModel.GetDeclaredSymbol(methodDeclarationSyntax) as IMethodSymbol;
-
-                // Get the symbol being declared by the field, and keep it if its annotated
-                if (methodSymbol?.GetAttributes().Any(attr => attr.AttributeClass.ToDisplayString() == "Maxle5.Finder.FinderGeneratorAttribute") == true)
-                {
-                    FinderMethodsToGenerate.Add(methodSymbol);
-                }
-            }
         }
     }
 }
