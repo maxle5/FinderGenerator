@@ -1,31 +1,15 @@
 ﻿namespace Maxle5.FinderGenerator.UnitTests
 {
-    public interface IContract
+    public class MyComplexObject
     {
-
+        public int Id { get; set; }
+        public string Name { get; set; }
+        public IEnumerable<int> Numbers { get; set; }
     }
 
-    public class Contract : IContract
+    public static partial class IntegerFinder
     {
-
-    }
-
-    public class Test
-    {
-        public int MyInt { get; set; }
-        public Contract MyContract { get; set; }
-        public List<Contract> MyStrings { get; set; }
-    }
-
-    public static partial class IRateableFinder
-    {
-        //[FinderGenerator]
-        //private static partial IEnumerable<int> FindInts(Test test);
-
-        //[FinderGenerator]
-        //private static partial IEnumerable<string> FindStrings(Test test);
-
         [FinderGenerator]
-        private static partial IEnumerable<IContract> FindContracts(Test test);
+        private static partial IEnumerable<int> Find(MyComplexObject test);
     }
 }
