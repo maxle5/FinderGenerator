@@ -7,9 +7,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{3766C04B-56E
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{BADAE2FE-0A6C-415C-8F7A-DCA840B2D08C}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Maxle5.FinderGenerator.UnitTests", "tests\Maxle5.Finder.UnitTests\Maxle5.FinderGenerator.UnitTests.csproj", "{D8BEA818-5647-424A-8586-A7D819AECAE6}"
-EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Maxle5.FinderGenerator", "src\Maxle5.FinderGenerator\Maxle5.FinderGenerator.csproj", "{7AB7B813-4AD4-426C-A067-BB838FAD5712}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Maxle5.FinderGenerator.UnitTests", "tests\Maxle5.FinderGenerator.UnitTests\Maxle5.FinderGenerator.UnitTests.csproj", "{D0C2A016-E88C-4148-9FDA-E0ADF20EBA74}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -17,21 +17,21 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{D8BEA818-5647-424A-8586-A7D819AECAE6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{D8BEA818-5647-424A-8586-A7D819AECAE6}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{D8BEA818-5647-424A-8586-A7D819AECAE6}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{D8BEA818-5647-424A-8586-A7D819AECAE6}.Release|Any CPU.Build.0 = Release|Any CPU
 		{7AB7B813-4AD4-426C-A067-BB838FAD5712}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{7AB7B813-4AD4-426C-A067-BB838FAD5712}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7AB7B813-4AD4-426C-A067-BB838FAD5712}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7AB7B813-4AD4-426C-A067-BB838FAD5712}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D0C2A016-E88C-4148-9FDA-E0ADF20EBA74}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D0C2A016-E88C-4148-9FDA-E0ADF20EBA74}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D0C2A016-E88C-4148-9FDA-E0ADF20EBA74}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D0C2A016-E88C-4148-9FDA-E0ADF20EBA74}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
-		{D8BEA818-5647-424A-8586-A7D819AECAE6} = {BADAE2FE-0A6C-415C-8F7A-DCA840B2D08C}
 		{7AB7B813-4AD4-426C-A067-BB838FAD5712} = {3766C04B-56E8-4F13-926D-6472F2BD4978}
+		{D0C2A016-E88C-4148-9FDA-E0ADF20EBA74} = {BADAE2FE-0A6C-415C-8F7A-DCA840B2D08C}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {FB5569C3-A1D3-45C5-A620-AA6198EF30F8}
