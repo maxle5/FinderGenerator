@@ -77,7 +77,7 @@ namespace Maxle5.FinderGenerator
                 }
 
                 var finderNamespace = receiver.FinderMethodsToGenerate.FirstOrDefault()?.ContainingNamespace.ToString();
-                var finderClassWrapper = BuildClassWrapper(receiver.FinderMethodsToGenerate.FirstOrDefault());
+                var finderClassWrapper = BuildClassWrapper(group.First().ContainingType);
 
                 var sourceCode = $@"using System;
 using System.Collections.Generic;
@@ -199,13 +199,11 @@ namespace {finderNamespace}
             }
         }
 
-        private static string BuildClassWrapper(IMethodSymbol method)
+        private static string BuildClassWrapper(INamedTypeSymbol containingType)
         {
             var sb = new StringBuilder();
 
-            var @class = method.ContainingType;
-
-            var accessibility = @class.DeclaredAccessibility switch
+            var accessibility = containingType.DeclaredAccessibility switch
             {
                 Accessibility.Public => "public",
                 Accessibility.Private => "private",
@@ -215,7 +213,7 @@ namespace {finderNamespace}
 
             sb.Append(accessibility);
 
-            if (@class.IsStatic)
+            if (containingType.IsStatic)
             {
                 sb.Append(" static");
             }
@@ -223,18 +221,18 @@ namespace {finderNamespace}
             // TODO: figure out how to determine if this is a partial class
             sb.Append(" partial");
 
-            if (@class.IsSealed)
+            if (containingType.IsSealed)
             {
                 sb.Append(" sealed");
             }
 
-            if (@class.IsAbstract)
+            if (containingType.IsAbstract)
             {
                 sb.Append(" abstract");
             }
 
             sb.Append(" class ");
-            sb.Append(@class.Name);
+            sb.Append(containingType.Name);
 
             return sb.ToString();
         }

@@ -12,4 +12,10 @@
         [FinderGenerator]
         private static partial IEnumerable<int> Find(MyComplexObject test);
     }
+    
+    public static partial class StringFinder
+    {
+        [FinderGenerator]
+        private static partial IEnumerable<string> Find(MyComplexObject tests);
+    }
 }
