@@ -1,10 +1,27 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
+		<IsPackable>true</IsPackable>
 		<LangVersion>10.0</LangVersion>
-		<IncludeBuildOutput>false</IncludeBuildOutput>
 		<TargetFramework>netstandard2.0</TargetFramework>
+
+		<PackFolder>analyzers\cs</PackFolder>
+		<IncludeBuildOutput>false</IncludeBuildOutput>
 		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+	</PropertyGroup>
+
+	<PropertyGroup>
+		<Authors>Max Lefebvre</Authors>
+		<Description>Maxle5.FinderGenerator is a high performance library used for finding all instances of a given Type from a complex object.</Description>
+
+		<PackageId>Maxle5.FinderGenerator</PackageId>
+		<PackageTags>generator</PackageTags>
+		<!--<PackageReadmeFile>README.md</PackageReadmeFile>-->
+		<!-- <PackageIcon>packageIcon.png</PackageIcon> -->
+		<!-- <PackageIconUrl>https://github.com/maxle5/FinderGenerator/tree/master/Maxle5.ProseMirror/packageIcon.png</PackageIconUrl> -->
+		<PackageProjectUrl>https://github.com/maxle5/FinderGenerator</PackageProjectUrl>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
 	</PropertyGroup>
 
 	<ItemGroup>
