@@ -1,6 +1,7 @@
 # Maxle5.FinderGenerator
 
-[![CI](https://github.com/maxle5/FinderGenerator/actions/workflows/ci.yml/badge.svg)](https://github.com/maxle5/FinderGenerator/actions/workflows/ci.yml)
+[![Nuget](https://img.shields.io/nuget/v/Maxle5.FinderGenerator?style=flat-square)](https://www.nuget.org/packages/Maxle5.FinderGenerator)
+[![Build](https://github.com/maxle5/FinderGenerator/actions/workflows/ci.yml/badge.svg)](https://github.com/maxle5/FinderGenerator/actions/workflows/ci.yml)
 
 Maxle5.FinderGenerator is a high performance library used for finding all instances of a given Type from a complex object. 
 
