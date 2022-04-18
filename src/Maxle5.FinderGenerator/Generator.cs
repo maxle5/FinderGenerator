@@ -1,14 +1,13 @@
 ﻿using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Text;
 
-namespace Maxle5.Finder
+namespace Maxle5.FinderGenerator
 {
     [Generator]
-    public class FinderSourceGenerator : ISourceGenerator
+    public class Generator : ISourceGenerator
     {
         private readonly Queue<char> _variableNames = new(new[]
         {
@@ -19,10 +18,10 @@ namespace Maxle5.Finder
         {
 #if DEBUG
             // If you want to debug the Source Generator, please uncomment the below code.
-            // if (!Debugger.IsAttached)
-            // {
-            //     Debugger.Launch();
-            // }
+            //if (!System.Diagnostics.Debugger.IsAttached)
+            //{
+            //    System.Diagnostics.Debugger.Launch();
+            //}
 #endif            
 
             // Register the attribute source
@@ -32,7 +31,7 @@ namespace Maxle5.Finder
 using System;
 using System.Collections.Generic;
 
-namespace Maxle5.Finder
+namespace Maxle5.FinderGenerator
 {
     [AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
     public class FinderGeneratorAttribute : Attribute
@@ -44,13 +43,13 @@ namespace Maxle5.Finder
 }"));
 
             // Register a syntax receiver that will be created for each generation pass
-            context.RegisterForSyntaxNotifications(() => new FinderSyntaxReceiver());
+            context.RegisterForSyntaxNotifications(() => new SyntaxReceiver());
         }
 
         public void Execute(GeneratorExecutionContext context)
         {
             // retrieve the populated receiver 
-            if (context.SyntaxContextReceiver is not FinderSyntaxReceiver receiver)
+            if (context.SyntaxContextReceiver is not SyntaxReceiver receiver)
             {
                 return;
             }
@@ -154,7 +153,7 @@ namespace {finderNamespace}
             {
                 if (
                     currentType.Equals(typeToFind, SymbolEqualityComparer.Default) ||
-                    (typeToFind.TypeKind == TypeKind.Interface && currentType.AllInterfaces.Any(i => i.Equals(typeToFind, SymbolEqualityComparer.Default))))
+                    typeToFind.TypeKind == TypeKind.Interface && currentType.AllInterfaces.Any(i => i.Equals(typeToFind, SymbolEqualityComparer.Default)))
                 {
                     sourceCode.Append("instances.Add(").Append(currentPath).AppendLine(");\n");
                 }

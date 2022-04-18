@@ -3,12 +3,12 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace Maxle5.Finder
+namespace Maxle5.FinderGenerator
 {
     /// <summary>
     /// Created on demand before each generation pass
     /// </summary>
-    internal class FinderSyntaxReceiver : ISyntaxContextReceiver
+    internal class SyntaxReceiver : ISyntaxContextReceiver
     {
         /// <summary>
         /// List of "Finder methods" to generate
@@ -28,7 +28,7 @@ namespace Maxle5.Finder
                 var methodSymbol = context.SemanticModel.GetDeclaredSymbol(methodDeclarationSyntax) as IMethodSymbol;
 
                 // Get the symbol being declared by the field, and keep it if its annotated
-                if (methodSymbol?.GetAttributes().Any(attr => attr.AttributeClass.ToDisplayString() == "Maxle5.Finder.FinderGeneratorAttribute") == true)
+                if (methodSymbol?.GetAttributes().Any(attr => attr.AttributeClass.ToDisplayString() == "Maxle5.FinderGenerator.FinderGeneratorAttribute") == true)
                 {
                     FinderMethodsToGenerate.Add(methodSymbol);
                 }

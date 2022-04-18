@@ -1,4 +1,4 @@
-﻿namespace Maxle5.Finder.UnitTests
+﻿namespace Maxle5.FinderGenerator.UnitTests
 {
     public interface IContract
     {
@@ -24,7 +24,7 @@
 
         //[FinderGenerator]
         //private static partial IEnumerable<string> FindStrings(Test test);
-        
+
         [FinderGenerator]
         private static partial IEnumerable<IContract> FindContracts(Test test);
     }
