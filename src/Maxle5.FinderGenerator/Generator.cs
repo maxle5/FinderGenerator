@@ -1,20 +1,23 @@
 ﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Text;
+using System.Threading;
 
 namespace Maxle5.FinderGenerator
 {
     [Generator]
-    public class Generator : ISourceGenerator
+    public class Generator : IIncrementalGenerator
     {
         private readonly Queue<char> _variableNames = new(new[]
         {
             'a','b','c','d','e','f','g','h','i','j','k','l','m','n','o','p','q','r','s','t','v','w','x','y','z'
         });
 
-        public void Initialize(GeneratorInitializationContext context)
+        public void Initialize(IncrementalGeneratorInitializationContext context)
         {
 #if DEBUG
             // If you want to debug the Source Generator, please uncomment the below code.
@@ -22,76 +25,183 @@ namespace Maxle5.FinderGenerator
             //{
             //    System.Diagnostics.Debugger.Launch();
             //}
-#endif            
+#endif
 
-            // Register the attribute source
-            context.RegisterForPostInitialization((i) => i.AddSource(
+            // Register the marker attribute source
+            context.RegisterPostInitializationOutput((i) => i.AddSource(
                 "FinderGeneratorAttribute.g.cs",
-                @"
-using System;
-using System.Collections.Generic;
+                SourceText.From(Templates.FinderGeneratorAttribute, Encoding.UTF8)));
 
-namespace Maxle5.FinderGenerator
-{
-    [AttributeUsage(AttributeTargets.Method, Inherited = false, AllowMultiple = false)]
-    public class FinderGeneratorAttribute : Attribute
-    {
-        public FinderGeneratorAttribute()
-        {
+            // Do a simple filter for enums
+            var methodDeclarations = context.SyntaxProvider
+                .CreateSyntaxProvider(
+                    predicate: static (s, _) => IsSyntaxTargetForGeneration(s),         // select methods with attributes, single params, and return IEnumerable<T>
+                    transform: static (ctx, _) => GetSemanticTargetForGeneration(ctx))  // select the method with the [FinderGenerator] attribute
+                .Where(static m => m is not null)!;                                     // filter out attributed enums that we don't care about
+
+            // Combine the selected methods with the `Compilation`
+            IncrementalValueProvider<(Compilation compilation, ImmutableArray<MethodDeclarationSyntax> methods)> compilationAndEnums
+                = context.CompilationProvider.Combine(methodDeclarations.Collect());
+
+            // Generate the source using the compilation and methods
+            context.RegisterSourceOutput(compilationAndEnums,
+                /*static*/ (spc, source) => Execute(source.compilation, source.methods, spc));
         }
-    }
-}"));
 
-            // Register a syntax receiver that will be created for each generation pass
-            context.RegisterForSyntaxNotifications(() => new SyntaxReceiver());
+        private static bool IsSyntaxTargetForGeneration(SyntaxNode node)
+        {
+            return node is MethodDeclarationSyntax method                           // any method
+                && method.AttributeLists.Count > 0                                  // with atleast 1 attribute
+                && method.Modifiers.Any(m => m.ValueText == "partial")              // that is partial
+                && method.ParameterList.Parameters.Count == 1                       // with 1 parameter
+                && method.ReturnType is GenericNameSyntax genericNameSyntax
+                && genericNameSyntax.Identifier.Value?.ToString() == "IEnumerable"; // that returns IEnumerable<T>
         }
 
-        public void Execute(GeneratorExecutionContext context)
+        private static MethodDeclarationSyntax GetSemanticTargetForGeneration(GeneratorSyntaxContext context)
         {
-            // retrieve the populated receiver 
-            if (context.SyntaxContextReceiver is not SyntaxReceiver receiver)
+            // we know the node is a MethodDeclarationSyntax thanks to IsSyntaxTargetForGeneration
+            var methodDeclarationSyntax = (MethodDeclarationSyntax)context.Node;
+
+            // loop through all the attributes on the method
+            foreach (var attributeListSyntax in methodDeclarationSyntax.AttributeLists)
+            {
+                foreach (var attributeSyntax in attributeListSyntax.Attributes)
+                {
+                    if (context.SemanticModel.GetSymbolInfo(attributeSyntax).Symbol is not IMethodSymbol attributeSymbol)
+                    {
+                        // weird, we couldn't get the symbol, ignore it
+                        continue;
+                    }
+
+                    var attributeContainingTypeSymbol = attributeSymbol.ContainingType;
+                    var fullName = attributeContainingTypeSymbol.ToDisplayString();
+
+                    // Is the attribute the [FinderGenerator] attribute?
+                    if (fullName == Templates.FinderGeneratorAttributeFullName)
+                    {
+                        // return the enum
+                        return methodDeclarationSyntax;
+                    }
+                }
+            }
+
+            // we didn't find the attribute we were looking for
+            return null;
+        }
+
+        public void Execute(Compilation compilation, ImmutableArray<MethodDeclarationSyntax> methods, SourceProductionContext context)
+        {
+            // nothing to do yet
+            if (methods.IsDefaultOrEmpty)
             {
                 return;
             }
 
-            foreach (var group in receiver.FinderMethodsToGenerate.GroupBy(m => m.ContainingType.Name))
+            var distinctMethods = methods.Distinct();
+
+            // Convert each MethodDeclarationSyntax to a MethodToGenerate
+            var methodsToGenerate = GetMethodsToGenerate(compilation, distinctMethods, context.CancellationToken);
+
+            // If there were errors in the MethodDeclarationSyntax, we won't create an
+            // MethodToGenerate for it, so make sure we have something to generate
+            if (methodsToGenerate.Count > 0)
             {
-                var finderMethods = new StringBuilder();
-                foreach (var finderMethodToGenerate in group)
+                foreach (var group in methodsToGenerate.GroupBy(m => m.Symbol.ContainingType.Name))
                 {
-                    if (finderMethodToGenerate.Parameters.Length != 1)
+                    var finderMethods = new StringBuilder();
+                    foreach (var finderMethodToGenerate in group)
                     {
-                        continue; // doesn't have a single parameter (this is a requirement)
+                        var finderMethodWrapper = finderMethodToGenerate.ToString();
+
+                        finderMethods.Append(GenerateFinderClass(
+                            finderMethodWrapper,
+                            finderMethodToGenerate.ParameterName,
+                            finderMethodToGenerate.TypeToLookThrough,
+                            finderMethodToGenerate.TypeToFind));
+
+                        finderMethods.Append("\n\n\t");
                     }
 
-                    if (!TryGetGenericArgumentTypeFromIEnumerable(finderMethodToGenerate.ReturnType as INamedTypeSymbol, out var typeToFind))
-                    {
-                        continue; // doesn't return IEnumerable (this is a requirement)
-                    }
+                    var finderNamespace = methodsToGenerate.FirstOrDefault()?.Symbol?.ContainingNamespace.ToString();
+                    var finderClassWrapper = BuildClassWrapper(group.First()?.Symbol.ContainingType);
 
-                    var finderMethodWrapper = BuildMethodWrapper(finderMethodToGenerate, typeToFind);
-                    var parameter = finderMethodToGenerate.Parameters[0];
-                    var typeToLookThrough = parameter.Type as INamedTypeSymbol;
-                    finderMethods.Append(GenerateFinderClass(finderMethodWrapper, parameter.Name, typeToLookThrough, typeToFind));
-                    finderMethods.Append("\n\n\t");
+                    var sourceCode = $@"using System;
+            using System.Collections.Generic;
+
+            namespace {finderNamespace}
+            {{
+                {finderClassWrapper}
+                {{
+                    {finderMethods}
+                }}
+            }}";
+
+                    context.AddSource($"{group.Key}.g.cs", SourceText.From(sourceCode, Encoding.UTF8));
+                }
+            }
+        }
+
+        private static List<MethodToGenerate> GetMethodsToGenerate(
+           Compilation compilation,
+           IEnumerable<MethodDeclarationSyntax> methods,
+           CancellationToken cancellationToken)
+        {
+            // Create a list to hold our output
+            var enumsToGenerate = new List<MethodToGenerate>();
+
+            // Get the semantic representation of our marker attribute 
+            var enumAttribute = compilation.GetTypeByMetadataName(Templates.FinderGeneratorAttributeFullName);
+
+            if (enumAttribute == null)
+            {
+                // If this is null, the compilation couldn't find the marker attribute type
+                // which suggests there's something very wrong! Bail out..
+                return enumsToGenerate;
+            }
+
+            foreach (var methodDeclarationSyntax in methods)
+            {
+                // stop if we're asked to
+                cancellationToken.ThrowIfCancellationRequested();
+
+                // Get the semantic representation of the enum syntax
+                var semanticModel = compilation.GetSemanticModel(methodDeclarationSyntax.SyntaxTree);
+                if (semanticModel.GetDeclaredSymbol(methodDeclarationSyntax) is not IMethodSymbol methodSymbol)
+                {
+                    // something went wrong, bail out
+                    continue;
                 }
 
-                var finderNamespace = receiver.FinderMethodsToGenerate.FirstOrDefault()?.ContainingNamespace.ToString();
-                var finderClassWrapper = BuildClassWrapper(group.First().ContainingType);
+                if (methodSymbol.Parameters.Length != 1)
+                {
+                    // something went wrong, bail out
+                    continue;
+                }
 
-                var sourceCode = $@"using System;
-using System.Collections.Generic;
+                if (methodSymbol.ReturnType is not INamedTypeSymbol returnTypeSymbol)
+                {
+                    // something went wrong, bail out
+                    continue;
+                }
 
-namespace {finderNamespace}
-{{
-    {finderClassWrapper}
-    {{
-        {finderMethods}
-    }}
-}}";
+                if (returnTypeSymbol.TypeArguments.Length != 1)
+                {
+                    // something went wrong, bail out
+                    continue;
+                }
 
-                context.AddSource($"{group.Key}.g.cs", SourceText.From(sourceCode, Encoding.UTF8));
+                if (returnTypeSymbol.TypeArguments[0] is not INamedTypeSymbol)
+                {
+                    // something went wrong, bail out
+                    continue;
+                }
+
+                // Create a MethodToGenerate for use in the generation phase
+                enumsToGenerate.Add(new MethodToGenerate(methodSymbol));
             }
+
+            return enumsToGenerate;
         }
 
         private string GenerateFinderClass(
@@ -153,7 +263,7 @@ namespace {finderNamespace}
             {
                 if (
                     currentType.Equals(typeToFind, SymbolEqualityComparer.Default) ||
-                    typeToFind.TypeKind == TypeKind.Interface && currentType.AllInterfaces.Any(i => i.Equals(typeToFind, SymbolEqualityComparer.Default)))
+                    (typeToFind.TypeKind == TypeKind.Interface && currentType.AllInterfaces.Any(i => i.Equals(typeToFind, SymbolEqualityComparer.Default))))
                 {
                     sourceCode.Append("instances.Add(").Append(currentPath).AppendLine(");\n");
                 }
@@ -237,45 +347,6 @@ namespace {finderNamespace}
             return sb.ToString();
         }
 
-        private static string BuildMethodWrapper(IMethodSymbol method, INamedTypeSymbol typeToFind)
-        {
-            var sb = new StringBuilder();
-
-            var accessibility = method.DeclaredAccessibility switch
-            {
-                Accessibility.Public => "public",
-                Accessibility.Protected => "protected",
-                Accessibility.Private => "private",
-                Accessibility.Internal => "internal",
-                Accessibility.ProtectedAndInternal => "internal protected",
-                _ => string.Empty
-            };
-
-            sb.Append(accessibility);
-
-            if (method.IsStatic)
-            {
-                sb.Append(" static");
-            }
-
-            if (method.IsPartialDefinition)
-            {
-                sb.Append(" partial");
-            }
-
-            sb.Append(" IEnumerable<");
-            sb.Append(typeToFind.ToDisplayString());
-            sb.Append("> ");
-            sb.Append(method.Name);
-            sb.Append("(");
-            sb.Append(method.Parameters[0].Type.ToDisplayString());
-            sb.Append(" ");
-            sb.Append(method.Parameters[0].Name);
-            sb.Append(")");
-
-            return sb.ToString();
-        }
-
         private static bool TryGetGenericArgumentTypeFromIEnumerable(
             INamedTypeSymbol type,
             out INamedTypeSymbol genericArgumentType)
@@ -292,6 +363,61 @@ namespace {finderNamespace}
             }
 
             return false;
+        }
+    }
+
+    public class MethodToGenerate
+    {
+        public IMethodSymbol Symbol { get; }
+        public string ParameterName { get; }
+        public INamedTypeSymbol TypeToFind { get; }
+        public INamedTypeSymbol TypeToLookThrough { get; }
+
+        public MethodToGenerate(IMethodSymbol methodSymbol)
+        {
+            Symbol = methodSymbol;
+            ParameterName = methodSymbol.Parameters[0].Name;
+            TypeToFind = (methodSymbol.ReturnType as INamedTypeSymbol)?.TypeArguments[0] as INamedTypeSymbol;
+            TypeToLookThrough = methodSymbol.Parameters[0].Type as INamedTypeSymbol;
+        }
+
+        public override string ToString()
+        {
+            var sb = new StringBuilder();
+
+            var accessibility = Symbol.DeclaredAccessibility switch
+            {
+                Accessibility.Public => "public",
+                Accessibility.Protected => "protected",
+                Accessibility.Private => "private",
+                Accessibility.Internal => "internal",
+                Accessibility.ProtectedAndInternal => "internal protected",
+                _ => string.Empty
+            };
+
+            sb.Append(accessibility);
+
+            if (Symbol.IsStatic)
+            {
+                sb.Append(" static");
+            }
+
+            if (Symbol.IsPartialDefinition)
+            {
+                sb.Append(" partial");
+            }
+
+            sb.Append(" IEnumerable<");
+            sb.Append(TypeToFind.ToDisplayString());
+            sb.Append("> ");
+            sb.Append(Symbol.Name);
+            sb.Append("(");
+            sb.Append(Symbol.Parameters[0].Type.ToDisplayString());
+            sb.Append(" ");
+            sb.Append(Symbol.Parameters[0].Name);
+            sb.Append(")");
+
+            return sb.ToString();
         }
     }
 }
