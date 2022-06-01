@@ -6,7 +6,7 @@ namespace Maxle5.FinderGenerator.UnitTests
     public static partial class Finder
     {
         [FinderGenerator]
-        public static partial IEnumerable<int> FindInts(MySampleObject test);
+        public static partial IEnumerable<int> FindIntegers(MySampleObject test);
 
         [FinderGenerator]
         public static partial IEnumerable<MySampleChildObject> FindChildren(MySampleObject test);
@@ -30,7 +30,7 @@ namespace Maxle5.FinderGenerator.UnitTests
             };
 
             // Act
-            var ints = Finder.FindInts(obj);
+            var ints = Finder.FindIntegers(obj);
 
             // Assert
             var expectedInts = new[] { 99, 98, 97, 96, 95, 94, 93, 92, 91, 90 };

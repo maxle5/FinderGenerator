@@ -37,7 +37,7 @@ namespace Maxle5.FinderGenerator
                 .CreateSyntaxProvider(
                     predicate: static (s, _) => IsSyntaxTargetForGeneration(s),         // select methods with attributes, single params, and return IEnumerable<T>
                     transform: static (ctx, _) => GetSemanticTargetForGeneration(ctx))  // select the method with the [FinderGenerator] attribute
-                .Where(static m => m is not null)!;                                     // filter out attributed enums that we don't care about
+                .Where(static m => m is not null);                                      // filter out attributed enums that we don't care about
 
             // Combine the selected methods with the `Compilation`
             IncrementalValueProvider<(Compilation compilation, ImmutableArray<MethodDeclarationSyntax> methods)> compilationAndEnums
@@ -51,11 +51,8 @@ namespace Maxle5.FinderGenerator
         private static bool IsSyntaxTargetForGeneration(SyntaxNode node)
         {
             return node is MethodDeclarationSyntax method                           // any method
-                && method.AttributeLists.Count > 0                                  // with atleast 1 attribute
-                && method.Modifiers.Any(m => m.ValueText == "partial")              // that is partial
-                && method.ParameterList.Parameters.Count == 1                       // with 1 parameter
-                && method.ReturnType is GenericNameSyntax genericNameSyntax
-                && genericNameSyntax.Identifier.Value?.ToString() == "IEnumerable"; // that returns IEnumerable<T>
+                && method.AttributeLists.Count > 0                                  // with at least 1 attribute
+                && method.ParameterList.Parameters.Count == 1;                       // with 1 parameter
         }
 
         private static MethodDeclarationSyntax GetSemanticTargetForGeneration(GeneratorSyntaxContext context)
@@ -98,10 +95,8 @@ namespace Maxle5.FinderGenerator
                 return;
             }
 
-            var distinctMethods = methods.Distinct();
-
             // Convert each MethodDeclarationSyntax to a MethodToGenerate
-            var methodsToGenerate = GetMethodsToGenerate(compilation, distinctMethods, context.CancellationToken);
+            var methodsToGenerate = GetMethodsToGenerate(compilation, methods, context.CancellationToken);
 
             // If there were errors in the MethodDeclarationSyntax, we won't create an
             // MethodToGenerate for it, so make sure we have something to generate
@@ -120,22 +115,23 @@ namespace Maxle5.FinderGenerator
                             finderMethodToGenerate.TypeToLookThrough,
                             finderMethodToGenerate.TypeToFind));
 
-                        finderMethods.Append("\n\n\t");
+                        finderMethods.AppendLine();
                     }
 
                     var finderNamespace = methodsToGenerate.FirstOrDefault()?.Symbol?.ContainingNamespace.ToString();
                     var finderClassWrapper = BuildClassWrapper(group.First()?.Symbol.ContainingType);
 
-                    var sourceCode = $@"using System;
-            using System.Collections.Generic;
-
-            namespace {finderNamespace}
-            {{
-                {finderClassWrapper}
-                {{
-                    {finderMethods}
-                }}
-            }}";
+                    var sourceCode = new StringBuilder("using System;")
+                        .AppendLine("using System.Collections;")
+                        .AppendLine("using System.Collections.Generic;")
+                        .AppendLine()
+                        .Append("namespace ").AppendLine(finderNamespace)
+                        .AppendLine("{")
+                        .Append('\t').AppendLine(finderClassWrapper)
+                        .Append('\t').AppendLine("{")
+                        .AppendLine(finderMethods.ToString())
+                        .Append('\t').AppendLine("}")
+                        .AppendLine("}").ToString();
 
                     context.AddSource($"{group.Key}.g.cs", SourceText.From(sourceCode, Encoding.UTF8));
                 }
@@ -218,12 +214,22 @@ namespace Maxle5.FinderGenerator
                 typeToLookThrough,
                 typeToFind);
 
-            return $@"{methodSignature}
-        {{
-            var instances = new List<{typeToFind.ToDisplayString()}>();
-            {sourceCodeBody}
-            return instances;
-        }}";
+            return new StringBuilder(methodSignature)
+                .AppendLine()
+                .Append('\t').Append('\t').AppendLine("{")
+                .Append('\t').Append('\t').Append('\t').Append("var instances = new List<").Append(typeToFind.ToDisplayString()).AppendLine(">();")
+                .AppendLine()
+                .AppendLine(sourceCodeBody.ToString())
+                .Append('\t').Append('\t').Append('\t').AppendLine("return instances;")
+                .Append('\t').Append('\t').AppendLine("}")
+                .ToString();
+
+            //return $@"{methodSignature}
+            //{{
+            //    var instances = new List<{typeToFind.ToDisplayString()}>();
+            //    {sourceCodeBody}
+            //    return instances;
+            //}}";
         }
 
         private void GenerateFinderMethod(
@@ -250,8 +256,8 @@ namespace Maxle5.FinderGenerator
                     // Check if there were any matches in type T
                     if (tempSourceCode.Length > 0)
                     {
-                        tempSourceCode.Insert(0, $"foreach(var {variableName} in {currentPath})\n{{\n");
-                        tempSourceCode.Append("}\n");
+                        tempSourceCode.Insert(0, $"\n\t\t\tforeach(var {variableName} in {currentPath})\n\t\t\t{{\n");
+                        tempSourceCode.Append('\t').Append('\t').Append('\t').AppendLine("}");
                         sourceCode.Append(tempSourceCode.ToString());
                     }
                 }
@@ -265,7 +271,7 @@ namespace Maxle5.FinderGenerator
                     currentType.Equals(typeToFind, SymbolEqualityComparer.Default) ||
                     (typeToFind.TypeKind == TypeKind.Interface && currentType.AllInterfaces.Any(i => i.Equals(typeToFind, SymbolEqualityComparer.Default))))
                 {
-                    sourceCode.Append("instances.Add(").Append(currentPath).AppendLine(");\n");
+                    sourceCode.Append('\t').Append('\t').Append('\t').Append("instances.Add(").Append(currentPath).AppendLine(");");
                 }
 
                 if (TypeHasPropertiesToSearch(currentType))
@@ -383,7 +389,7 @@ namespace Maxle5.FinderGenerator
 
         public override string ToString()
         {
-            var sb = new StringBuilder();
+            var sb = new StringBuilder("\t\t");
 
             var accessibility = Symbol.DeclaredAccessibility switch
             {

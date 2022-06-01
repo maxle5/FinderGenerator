@@ -4,6 +4,7 @@
     {
         public int Id { get; set; }
         public string Name { get; set; }
+        public int MyInteger { get; set; }
         public MySampleChildObject Child { get; set; }
         public IEnumerable<int> Numbers { get; set; }
     }
