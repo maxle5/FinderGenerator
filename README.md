@@ -19,7 +19,7 @@ Maxle5.FinderGenerator is a high performance library used for finding all instan
 public static partial class IntegerFinder
 {
     [FinderGenerator]
-    public static partial IEnumerable<int> Find(MyComplexObject test);
+    public static partial IEnumerable<int> FindInts(MyComplexObject test);
 }
 
 // Sample Object To Look through
@@ -35,7 +35,7 @@ public class MyComplexObject
 ```
 public static partial class IntegerFinder
 {
-    public static partial IEnumerable<int> Find(MyComplexObject test)
+    public static partial IEnumerable<int> FindInts(MyComplexObject test)
     {
         var instances = new List<int>();
         instances.Add(test.Id);
