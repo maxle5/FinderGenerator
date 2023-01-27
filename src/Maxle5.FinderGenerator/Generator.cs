@@ -256,8 +256,11 @@ namespace Maxle5.FinderGenerator
                     // Check if there were any matches in type T
                     if (tempSourceCode.Length > 0)
                     {
-                        tempSourceCode.Insert(0, $"\n\t\t\tforeach(var {variableName} in {currentPath})\n\t\t\t{{\n");
-                        tempSourceCode.Append('\t').Append('\t').Append('\t').AppendLine("}");
+                        var nullCheck = $"\n\t\t\tif({currentPath} != null) \n{{\n";
+                        var foreachLoop = $"\t\t\tforeach(var {variableName} in {currentPath})\n\t\t\t{{\n";
+
+                        tempSourceCode.Insert(0, nullCheck + foreachLoop);
+                        tempSourceCode.Append('\t').Append('\t').Append('\t').AppendLine("}\n}");
                         sourceCode.Append(tempSourceCode.ToString());
                     }
                 }
@@ -276,6 +279,8 @@ namespace Maxle5.FinderGenerator
 
                 if (TypeHasPropertiesToSearch(currentType))
                 {
+                    sourceCode.Append('\t').Append('\t').Append('\t').Append("if (").Append(currentPath).Append(" != null)\r\n\t{");
+
                     foreach (var property in currentType.GetMembers().OfType<IPropertySymbol>())
                     {
                         if (property.Type is INamedTypeSymbol propertyType && !property.Type.Equals(currentType, SymbolEqualityComparer.Default))
@@ -287,32 +292,22 @@ namespace Maxle5.FinderGenerator
                                 typeToFind);
                         }
                     }
+
+                    sourceCode.Append('\t').Append('\t').Append('\t').Append("}");
                 }
             }
         }
 
         private static bool TypeHasPropertiesToSearch(INamedTypeSymbol t)
         {
-            switch (t.Name)
+            var valueType = t.BaseType?.SpecialType == SpecialType.System_ValueType;
+            var excludedType = t.Name switch
             {
-                case "String":
-                case "char":
-                case "byte":
-                case "sbyte":
-                case "ushort":
-                case "short":
-                case "uint":
-                case "int":
-                case "ulong":
-                case "long":
-                case "float":
-                case "double":
-                case "decimal":
-                case "DateTime":
-                    return false;
-                default:
-                    return true;
-            }
+                "String" or "DateTime" => true,
+                _ => false,
+            };
+
+            return !valueType && !excludedType;
         }
 
         private static string BuildClassWrapper(INamedTypeSymbol containingType)

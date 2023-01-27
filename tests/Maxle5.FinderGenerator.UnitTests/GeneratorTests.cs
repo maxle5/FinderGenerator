@@ -59,5 +59,24 @@ namespace Maxle5.FinderGenerator.UnitTests
             // Assert
             children.Should().BeEquivalentTo(new[] { child });
         }
+
+        [Fact]
+        public void Find_ShouldNotThrow_WhenNestedNodeIsNull()
+        {
+            // Arrange
+            var obj = new MySampleObject
+            {
+                Id = 99,
+                Numbers = new[] { 98, 97, 96 },
+                Child = null // Generator should not attempt to return these
+            };
+
+            // Act
+            var act = () => Finder.FindIntegers(obj);
+
+            // Assert
+            act.Should().NotThrow<NullReferenceException>();
+            act().Should().BeEquivalentTo(new[] { 99, 98, 97, 96 });
+        }
     }
 }
