@@ -279,21 +279,28 @@ namespace Maxle5.FinderGenerator
 
                 if (TypeHasPropertiesToSearch(currentType))
                 {
-                    sourceCode.Append('\t').Append('\t').Append('\t').Append("if (").Append(currentPath).Append(" != null)\r\n\t{");
+                    var found = false;
+                    var tempSourceCode = new StringBuilder();
 
                     foreach (var property in currentType.GetMembers().OfType<IPropertySymbol>())
                     {
                         if (property.Type is INamedTypeSymbol propertyType && !property.Type.Equals(currentType, SymbolEqualityComparer.Default))
                         {
+                            found = true;
                             GenerateFinderMethod(
-                                sourceCode,
+                                tempSourceCode,
                                 string.Concat(currentPath, ".", property.Name),
                                 propertyType,
                                 typeToFind);
                         }
                     }
 
-                    sourceCode.Append('\t').Append('\t').Append('\t').Append("}");
+                    if (found && tempSourceCode.Length > 0)
+                    {
+                        sourceCode.Append('\t').Append('\t').Append('\t').Append("if (").Append(currentPath).Append(" != null)\r\n\t{");
+                        sourceCode.Append(tempSourceCode.ToString());
+                        sourceCode.Append('\t').Append('\t').Append('\t').Append("}");
+                    }
                 }
             }
         }
